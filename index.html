@@ -4,16 +4,16 @@
     <meta charset="UTF-8">
     <title>Gedächtnis-Experiment: Primacy & Recency</title>
     
-    <!-- jsPsych Kern-Bibliothek (über jsDelivr) -->
-    <script src="https://cdn.jsdelivr.net/npm/jspsych@7.3.4/dist/index.browser.min.js"></script>
+    <!-- jsPsych Kern-Bibliothek -->
+    <script src="https://unpkg.com/jspsych@7.3.4"></script>
     
-    <!-- jsPsych Plugins (über jsDelivr) -->
-    <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-keyboard-response@1.1.3/dist/index.browser.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@jspsych-contrib/plugin-pipe@0.6.0/dist/index.browser.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-survey-html-form@1.1.3/dist/index.browser.min.js"></script>
+    <!-- jsPsych Plugins (OHNE strikte Versionsnummern, um Fehler zu vermeiden) -->
+    <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response"></script>
+    <script src="https://unpkg.com/@jspsych-contrib/plugin-pipe"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-survey-html-form"></script>
     
     <!-- jsPsych Standard-Styling -->
-    <link href="https://cdn.jsdelivr.net/npm/jspsych@7.3.4/css/jspsych.css" rel="stylesheet" type="text/css" />
+    <link href="https://unpkg.com/jspsych@7.3.4/css/jspsych.css" rel="stylesheet" type="text/css" />
     
     <style>
         .stimulus-text {
@@ -295,7 +295,7 @@
         timeline.push(
             welcome,               // 1. Begrüßung
             consent,               // 2. Einverständnis
-            demographics,          // 3. Alter/Geschlecht
+         //   demographics,          // 3. Alter/Geschlecht
             instructions_study,    // 4. Erklärung Lernphase
             study_block,           // 5. Lernphase (40 Wörter)
             instructions_test,     // 6. Erklärung Testphase
