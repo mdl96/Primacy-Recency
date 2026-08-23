@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Gedächtnis-Experiment: Primacy & Recency</title>
+    
+    <!-- jsPsych Kern-Bibliothek -->
+    <script src="https://unpkg.com/jspsych@7.3.4"></script>
+    
+    <!-- jsPsych Plugins -->
+    <!-- Dieses Plugin brauchen wir für Fixationskreuz, Stimuli und Instruktionen -->
+    <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
+    
+    <!-- jsPsych Standard-Styling -->
+    <link href="https://unpkg.com/jspsych@7.3.4/css/jspsych.css" rel="stylesheet" type="text/css" />
+    
+    <!-- jsPsych DataPipe Plugin -->
+    <script src="https://unpkg.com/@jspsych-contrib/plugin-pipe"></script>
+
+    <!-- jsPsych Survey HTML Form Plugin für den Demographie-Fragebogen -->
+    <script src="https://unpkg.com/@jspsych/plugin-survey-html-form@1.1.3"></script>
+
+    <style>
+        /* Hier können wir später spezifische Designs (z.B. Schriftgröße der Wörter) anpassen */
+        .stimulus-text {
+            font-size: 48px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // 1. jsPsych initialisieren
+        const jsPsych = initJsPsych({
+            on_finish: function() {
+                // Zeigt am Ende vorläufig die Rohdaten im Browser an (gut zum Testen)
+                jsPsych.data.displayData();
+            }
+        });
+
+        // 2. Timeline erstellen (das Array, das den Ablauf steuert)
+        const timeline = [];
+
+        // 3. Globale Variablen für Tastenbelegungen (Standard für Recognition Tasks)
+        // Das macht es später einfacher, die Tasten zu ändern
+        const KEYS = {
+            old: 'f', // Taste für "Schon gesehen" (Alt)
+            new: 'j'  // Taste für "Neu"
+        };
+
+      // 4. Erweitertes Stimulus-Material: Pool von 80 einfachen deutschen Nomen
+        const wordPool = [
+            "Apfel", "Baum", "Haus", "Auto", "Hund", "Katze", "Tisch", "Stuhl", "Vogel", "Fisch", 
+            "Sonne", "Mond", "Stern", "Wolke", "Berg", "Fluss", "Wald", "Wiese", "Blume", "Buch",
+            "Stift", "Schuh", "Hut", "Jacke", "Hose", "Brot", "Käse", "Milch", "Wasser", "Saft",
+            "Uhr", "Glas", "Teller", "Gabel", "Messer", "Löffel", "Tasse", "Kanne", "Topf", "Pfanne", 
+            "Bett", "Schrank", "Sofa", "Sessel", "Teppich", "Lampe", "Spiegel", "Bild", "Tür", "Fenster", 
+            "Wand", "Dach", "Boden", "Treppe", "Garten", "Zaun", "Tor", "Weg", "Straße", "Platz",
+            "Brücke", "Schiff", "Boot", "Zug", "Bahn", "Flugzeug", "Fahrrad", "Motorrad", "Bus", "Bahnhof", 
+            "Flughafen", "Hafen", "Stadt", "Dorf", "Land", "Welt", "Insel", "Meer", "Strand", "Küste"
+        ];
+
+        // 5. Randomisierung und Aufteilung
+        const shuffledPool = jsPsych.randomization.shuffle(wordPool);
+
+        // Wir teilen den Pool in zwei Hälften (je 40 Wörter):
+        // Die ersten 40 Wörter werden in der Lernphase gezeigt
+        const targetWords = shuffledPool.slice(0, 40);
+        
+        // Die restlichen 40 Wörter dienen als Distraktoren in der Testphase
+        const distractorWords = shuffledPool.slice(40, 80);
+
+	// 6. Bedingungs-Management: Listen für die Lern- und Testphase erstellen
+
+        // A. Lernphase (Study Phase) vorbereiten
+        // Wir erstellen ein Array aus Objekten. Jedes Objekt enthält das Wort und seine Position.
+        const studyTrials = targetWords.map((word, index) => {
+            return {
+                word: word,
+                position: index + 1 // Position von 1 bis 40
+            };
+        });
+
+        // B. Testphase (Recognition Phase) vorbereiten
+        let testTrials = [];
+
+        // Targets ("alte" Wörter) zur Testliste hinzufügen
+        targetWords.forEach((word, index) => {
+            testTrials.push({
+                word: word,
+                condition: 'old',
+                correct_response: KEYS.old,
+                study_position: index + 1 // Das ist unser Schlüssel für die spätere Primacy/Recency-Auswertung!
+            });
+        });
+
+        // Distraktoren ("neue" Wörter) zur Testliste hinzufügen
+        distractorWords.forEach((word) => {
+            testTrials.push({
+                word: word,
+                condition: 'new',
+                correct_response: KEYS.new,
+                study_position: 'N/A' // Neue Wörter waren in der Lernphase nicht dabei
+            });
+        });
+
+        // Wir mischen die Testliste durch, damit "alte" und "neue" Wörter
+        // bei der Abfrage in einer unvorhersehbaren Reihenfolge erscheinen.
+        testTrials = jsPsych.randomization.shuffle(testTrials);
+	
+	// 7. Trial Sequences (Ablauf eines einzelnen Durchgangs)
+
+        // A. Fixationskreuz (Wird vor jedem Wort gezeigt)
+        const fixation = {
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: '<div style="font-size:60px; color:grey;">+</div>',
+            choices: "NO_KEYS",
+            trial_duration: 500, // Zeigt das Kreuz für 500 ms
+            data: { task: 'fixation' }
+        };
+
+        // B. Ablauf für die Lernphase (Wort einprägen)
+        const study_stimulus = {
+            type: jsPsychHtmlKeyboardResponse,
+            // Wir ziehen das Wort dynamisch aus unserer studyTrials-Variable
+            stimulus: function() {
+                return '<div class="stimulus-text">' + jsPsych.timelineVariable('word') + '</div>';
+            },
+            choices: "NO_KEYS", // Versuchsperson soll nur lesen, nicht drücken
+            trial_duration: 2000, // Jedes Wort wird 2 Sekunden (2000 ms) lang gezeigt
+            post_trial_gap: 500, // Inter-Trial-Interval (ITI) / Blank Screen für 500 ms
+            data: {
+                task: 'study_trial',
+                word: jsPsych.timelineVariable('word'),
+                study_position: jsPsych.timelineVariable('position')
+            }
+        };
+
+        // C. Ablauf für die Testphase (Abfrage alt vs. neu)
+        const test_stimulus = {
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: function() {
+                return '<div class="stimulus-text">' + jsPsych.timelineVariable('word') + '</div>' +
+                       '<p style="margin-top: 50px; font-size: 20px; color: #555;">' + 
+                       'Schon gesehen (<b>' + KEYS.old.toUpperCase() + '</b>) oder Neu (<b>' + KEYS.new.toUpperCase() + '</b>)?</p>';
+            },
+            choices: [KEYS.old, KEYS.new], // Nur diese beiden Tasten sind erlaubt
+            post_trial_gap: 500,
+            data: {
+                task: 'test_trial',
+                word: jsPsych.timelineVariable('word'),
+                condition: jsPsych.timelineVariable('condition'),
+                correct_response: jsPsych.timelineVariable('correct_response'),
+                study_position: jsPsych.timelineVariable('study_position')
+            },
+            on_finish: function(data) {
+                // Hier prüfen wir direkt, ob die gegebene Antwort richtig war 
+                // und speichern das als true/false in der Variable 'correct'
+                data.correct = jsPsych.pluginAPI.compareKeys(data.response, data.correct_response);
+            }
+        };
+	
+	// 8. Experiment-Struktur (Blöcke und Instruktionen)
+
+        // A. Instruktion vor der Lernphase
+        const instructions_study = {
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: `
+                <h2>Lernphase</h2>
+                <p>Es werden dir nun nacheinander 40 Wörter auf dem Bildschirm präsentiert.</p>
+                <p>Bitte präge dir diese Wörter so gut wie möglich ein.</p>
+                <p>Du musst in dieser Phase keine Tasten drücken.</p>
+                <p><i>Drücke eine beliebige Taste, um zu starten.</i></p>
+            `,
+            post_trial_gap: 1000
+        };
+
+        // B. Der Lern-Block
+        const study_block = {
+            timeline: [fixation, study_stimulus], // Zeige erst Kreuz, dann Wort
+            timeline_variables: studyTrials,      // Nutze unsere Liste mit den 40 Targets
+            randomize_order: false                // SEHR WICHTIG: Nicht mischen, damit die Positionsnummern (1-40) korrekt bleiben!
+        };
+
+        // C. Pause und Instruktion vor der Testphase
+        const instructions_test = {
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: `
+                <h2>Testphase</h2>
+                <p>Die Lernphase ist beendet.</p>
+                <p>Gleich siehst du eine Reihe von Wörtern. Einige davon hast du gerade gesehen ("Alte" Wörter), andere nicht ("Neue" Wörter).</p>
+                <p>Bitte entscheide so schnell und genau wie möglich:</p>
+                <p>War das Wort in der vorherigen Liste dabei?</p>
+                <p><b>JA</b> (altes Wort) = Taste <b>${KEYS.old.toUpperCase()}</b></p>
+                <p><b>NEIN</b> (neues Wort) = Taste <b>${KEYS.new.toUpperCase()}</b></p>
+                <p><i>Drücke eine beliebige Taste, um mit der Abfrage zu beginnen.</i></p>
+            `,
+            post_trial_gap: 1000
+        };
+
+        // D. Der Test-Block
+        const test_block = {
+            timeline: [fixation, test_stimulus],
+            timeline_variables: testTrials,
+            // Die testTrials wurden in Task 3 bereits gemischt, wir müssen sie hier nicht nochmal mischen
+            randomize_order: false 
+        };
+
+        // 9. Alles in die Haupt-Timeline schieben
+        // jsPsych wird diese Timeline exakt in dieser Reihenfolge abarbeiten
+        timeline.push(instructions_study, study_block, instructions_test, test_block);
+	
+	// 10. Datenspeicherung via DataPipe (OSF: https://osf.io/j27pd/)
+
+        // A. Zufällige ID für die Versuchsperson generieren (z.B. "a1b2c3d4")
+        const subject_id = jsPsych.randomization.randomID(8);
+        
+        // B. Diese Subject-ID an jede einzelne Datenzeile anhängen
+        jsPsych.data.addProperties({
+            subject: subject_id
+        });
+
+        // C. Dateiname für die CSV-Datei festlegen
+        const filename = `experiment_data_${subject_id}.csv`;
+
+        // D. Den Speicher-Block für DataPipe definieren
+        const save_data = {
+            type: jsPsychPipe,
+            action: "save",
+            experiment_id: "xYVpwn2Tows9", // WICHTIG: Das musst du noch ersetzen!
+            filename: filename,
+            data_string: () => jsPsych.data.get().csv() // Daten als .csv formatieren
+        };
+
+        // E. Den Speicher-Block ganz am Ende an die Timeline anhängen
+        timeline.push(save_data);
+
+	// 11. Willkommen, Consent, Demographie und Debriefing
+
+        // A. Willkommensbildschirm
+        const welcome = {
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: `
+                <h1>Willkommen!</h1>
+                <p>Vielen Dank für dein Interesse an unserer Studie zum Thema Gedächtnis.</p>
+                <p>Das Experiment wird etwa 5-10 Minuten dauern.</p>
+                <p><i>Drücke eine beliebige Taste, um fortzufahren.</i></p>
+            `
+        };
+
+        // B. Einverständniserklärung (Informed Consent)
+        const consent = {
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: `
+                <h2>Einverständniserklärung</h2>
+                <p>Deine Teilnahme an dieser Studie ist freiwillig. Du kannst das Experiment jederzeit abbrechen.</p>
+                <p>Die Daten werden vollständig anonymisiert erhoben und sicher für wissenschaftliche Zwecke gespeichert.</p>
+                <p><b>Wenn du mit der Teilnahme einverstanden bist, drücke die LEERTASTE.</b></p>
+            `,
+            choices: [' '] // Nur Leertaste erlaubt, um aktives Zustimmen zu simulieren
+        };
+
+        // C. Demographischer Fragebogen
+        const demographics = {
+            type: jsPsychSurveyHtmlForm,
+            preamble: '<h3>Bitte beantworte noch diese kurzen Fragen zu deiner Person:</h3>',
+            html: `
+                <p>
+                    Alter: <input name="age" type="number" required min="18" max="99" style="width: 50px;">
+                </p>
+                <p>
+                    Geschlecht: 
+                    <select name="gender" required>
+                        <option value="" disabled selected>Bitte wählen...</option>
+                        <option value="weiblich">Weiblich</option>
+                        <option value="maennlich">Männlich</option>
+                        <option value="divers">Divers</option>
+                        <option value="keine_angabe">Keine Angabe</option>
+                    </select>
+                </p>
+            `,
+            button_label: 'Weiter'
+        };
+
+        // D. Verabschiedung (Debriefing)
+        const debriefing = {
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: `
+                <h2>Vielen Dank für deine Teilnahme!</h2>
+                <p>In diesem Experiment haben wir untersucht, wie gut sich Menschen Wörter merken können,<br>
+                abhängig davon, ob sie am Anfang, in der Mitte oder am Ende einer Liste präsentiert wurden <br>
+                (Primacy- und Recency-Effekt).</p>
+                <p>Deine Daten wurden erfolgreich gespeichert.</p>
+                <p><i>Du kannst dieses Browserfenster nun schließen.</i></p>
+            `,
+            choices: "NO_KEYS" // Keine Tasten mehr erlaubt, das Experiment ist hier zu Ende
+        };
+
+	// 12. Die finale Timeline zusammenstellen
+        // Wir pushen alle Blöcke in der exakten Reihenfolge des Ablaufs:
+        timeline.push(
+            welcome,               // 1. Begrüßung
+            consent,               // 2. Einverständnis
+            demographics,          // 3. Alter/Geschlecht
+            instructions_study,    // 4. Erklärung Lernphase
+            study_block,           // 5. Lernphase (40 Wörter)
+            instructions_test,     // 6. Erklärung Testphase
+            test_block,            // 7. Testphase (80 Wörter alt/neu)
+            save_data,             // 8. Daten an DataPipe (OSF) senden
+            debriefing             // 9. Verabschiedung
+        );
+
+        // 13. Das Experiment starten!
+        jsPsych.run(timeline);
+
+    </script>
+</body>
+</html>
